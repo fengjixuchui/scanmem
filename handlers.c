@@ -327,8 +327,7 @@ bool handler__list(globals_t *vars, char **argv, unsigned argc)
     char *v = NULL;
     const char *bytearray_suffix = ", [bytearray]";
     const char *string_suffix = ", [string]";
-    struct winsize w;
-    FILE *pager;
+    FILE *pager = stdout;
 
     unsigned long max_to_print = 10000;
     if (argc > 1) {
@@ -355,13 +354,17 @@ bool handler__list(globals_t *vars, char **argv, unsigned argc)
     matches_and_old_values_swath *reading_swath_index = vars->matches->swaths;
     size_t reading_iterator = 0;
 
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1) {
-        if (!vars->options.backend)
+    if (isatty(STDOUT_FILENO)) {
+        struct winsize w;
+
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1) {
             show_warn("handler__list(): couldn't get terminal size.\n");
-        pager = get_pager(stdout);
-    } else {
-        /* check if the output fits in the terminal window */
-        pager = (w.ws_row >= MIN(max_to_print, vars->num_matches)) ? stdout : get_pager(stdout);
+            pager = get_pager(stdout);
+        } else {
+            /* check if the output fits in the terminal window */
+            if (w.ws_row <= MIN(max_to_print, vars->num_matches))
+                pager = get_pager(stdout);
+        }
     }
 
     /* list all known matches */
@@ -640,7 +643,7 @@ bool handler__dregion(globals_t *vars, char **argv, unsigned argc)
 
         /* check if a match was found */
         if (np == NULL) {
-            show_warn("no region matching %u, or already removed.\n", reg_id);
+            show_warn("no region matching %lu, or already removed.\n", reg_id);
             continue;
         }
         
@@ -1176,7 +1179,7 @@ bool handler__watch(globals_t * vars, char **argv, unsigned argc)
 
     /* check that this is a valid match-id */
     if (!loc.swath) {
-        show_error("you specified a non-existent match `%u`.\n", id);
+        show_error("you specified a non-existent match `%lu`.\n", id);
         show_info("use \"list\" to list matches, or \"help\" for other commands.\n");
         return false;
     }
